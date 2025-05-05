@@ -1,0 +1,169 @@
+.bg-primary-2 {
+  background-color: #67308f;
+  color: #f8f9fa;
+}
+
+.bg-secondary-2 {
+  background-color: #eb0d8c;
+  color: #f8f9fa;
+}
+
+.btn-primary-2 {
+  background-color: #67308f;
+  color: #f8f9fa;
+}
+
+.btn-primary-2:hover {
+  background-color: #eb0d8c;
+  color: #67308f;
+}
+
+/* Fix card width and other styling issues */
+#rebuetext-settings-container {
+  max-width: 100%;
+  padding: 0;
+}
+
+.card.w-100 {
+  width: 100% !important;
+  max-width: 100% !important;
+  display: block;
+}
+
+#rebuetext-settings-container .card {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #dcdcde;
+}
+
+#rebuetext-settings-container .card-header {
+  border-bottom: 1px solid #dcdcde;
+}
+
+/* Better form switch alignment */
+.form-switch .form-check-input {
+  margin-left: 0;
+}
+
+/* Container alignment for switch groups */
+.rebuetext-switch-group {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border: 1px solid #dee2e6;
+  border-radius: 0.4rem;
+  margin-bottom: 0.75rem;
+  background-color: #f8f9fa;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.rebuetext-switch-group:hover {
+  background-color: #e9ecef;
+}
+
+/* Flutter-style toggle switch */
+.rebuetext-switch-group .form-check-input {
+  width: 3rem;
+  height: 1.5rem;
+  background-color: #ccc;
+  border-radius: 1rem;
+  position: relative;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: background-color 0.3s ease-in-out;
+  cursor: pointer;
+}
+
+.rebuetext-switch-group .form-check-input::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 1.1rem;
+  height: 1.1rem;
+  background-color: white;
+  border-radius: 50%;
+  transition: transform 0.3s ease-in-out;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.rebuetext-switch-group .form-check-input:checked {
+  background-color: #67308f; /* Use your primary color */
+}
+
+.rebuetext-switch-group .form-check-input:checked::before {
+  transform: translateX(1.5rem);
+}
+
+.rebuetext-switch-group .form-check-label {
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+/* Bootstrap 5 switch override tweaks */
+.rebuetext-switch-group .form-check-input {
+  width: 2.5em;
+  height: 1.4em;
+  margin-right: 0.75rem;
+  margin-left: 0 !important;
+  cursor: pointer;
+}
+
+.rebuetext-switch-group .form-check-label {
+  font-weight: 500;
+  cursor: pointer;
+  margin: 0;
+}
+
+.status-icon {
+  font-size: 1rem;
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+
+.status-switch:checked ~ .form-check-label .status-icon {
+  color: green;
+  content: "✅";
+}
+
+.status-switch:not(:checked) ~ .form-check-label .status-icon {
+  color: red;
+  content: "❌";
+}
+
+/* Merge tags styling to match your existing */
+.merge-tag {
+  display: inline-block;
+  padding: 5px 10px;
+  margin: 0 5px 5px 0;
+  cursor: pointer;
+  background-color: #67308f;
+  color: white;
+  border-radius: 5px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.merge-tag:hover {
+  background-color: #eb0d8c;
+}
+
+.merge-tag.copied {
+  background-color: #28a745 !important;
+}
+
+/* WordPress compatible styling */
+.wrap {
+  padding: 20px;
+}
+
+/* Better accordion styling */
+.accordion-button:not(.collapsed) {
+  background-color: rgba(0, 115, 170, 0.1);
+  color: #0073aa;
+  box-shadow: none;
+}
+
+.accordion-button:focus {
+  box-shadow: none;
+  border-color: rgba(0, 115, 170, 0.25);
+}

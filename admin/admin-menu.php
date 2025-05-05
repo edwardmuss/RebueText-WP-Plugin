@@ -32,6 +32,16 @@ function rebuetext_admin_menu()
         'rebuetext_form_integrations_page'
     );
 
+    // Add the submenu page that will redirect
+    add_submenu_page(
+        'rebuetext-settings', // Parent slug (your main plugin menu)
+        'Gravity Forms Integration', // Page title
+        'Gravity Forms', // Menu title (you can shorten it for the menu)
+        'manage_options', // Capability
+        'rebuetext-gf-integrations-redirect', // **Use a different slug for the redirect page**
+        'rebuetext_gravityforms_redirect_to_gf' // Callback function for redirection
+    );
+
     // SMS Logs Submenu
     add_submenu_page(
         'rebuetext-settings',
@@ -70,15 +80,6 @@ function rebuetext_admin_menu()
         'manage_options',
         'rebuetext-form-integrations',
         'rebuetext_form_integrations_page'
-    );
-
-    add_submenu_page(
-        'rebuetext-settings', // Parent slug (your main plugin menu)
-        'Gravity Forms Integration', // Page title
-        'Gravity Forms Integration', // Menu title
-        'manage_options', // Capability
-        'rebuetext-gf-integrations', // Menu slug
-        'rebuetext_gravityforms_integrations_page' // Callback function
     );
 
     // show an extra tab in the Contact Form 7 form editor UI

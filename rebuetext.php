@@ -42,7 +42,7 @@ function rebuetext_plugin_row_meta($links, $file)
         $meta_links = [
             '<a href="https://rebuetext.com/contact-us" target="_blank">Support</a>',
             '<a href="https://rebuetext.com/pricing" target="_blank">Pricing</a>',
-            '<a href="#" target="_blank">Github</a>',
+            '<a href="https://github.com/edwardmuss/RebueText-WP-Plugin" target="_blank">Github</a>',
         ];
         $links = array_merge($links, $meta_links);
     }

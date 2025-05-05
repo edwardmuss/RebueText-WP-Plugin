@@ -451,3 +451,27 @@ function rebuetext_form_integrations_page()
         </form>
     <?php
     }
+
+    function rebuetext_gravityforms_redirect_to_gf()
+    {
+        // Check if Gravity Forms is active and the user has the necessary capabilities
+        if (class_exists('GFForms') && current_user_can('gravityforms_edit_forms')) {
+            // Get the URL of the Gravity Forms forms page
+            $gf_forms_url = admin_url('admin.php?page=gf_edit_forms');
+
+            // Perform the redirection
+            wp_redirect($gf_forms_url);
+            exit; // Always exit after a redirect
+        } else {
+            // Handle cases where Gravity Forms is not active or the user lacks permissions
+            // You might display an error message or a link to the Gravity Forms page
+            echo '<div class="wrap">';
+            echo '<h1>Gravity Forms Integration</h1>';
+            echo '<p>Gravity Forms is not active or you do not have permission to view the forms.</p>';
+            // Optionally, provide a link if GF is active but user lacks permission
+            if (class_exists('GFForms')) {
+                echo '<p><a href="' . admin_url('admin.php?page=gf_edit_forms') . '">Go to Gravity Forms</a></p>';
+            }
+            echo '</div>';
+        }
+    }

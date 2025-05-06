@@ -4,7 +4,7 @@ function rebuetext_admin_menu()
     // Main Menu
     add_menu_page(
         'Rebuetext SMS Settings',   // Page Title
-        'Rebuetext SMS',            // Menu Title
+        'Rebuetext',            // Menu Title
         'manage_options',           // Capability
         'rebuetext-settings',       // Menu Slug
         'rebuetext_settings_page',  // Function to Display Page
@@ -87,7 +87,7 @@ function rebuetext_admin_menu()
     function rebuetext_cf7_add_sms_tab($panels)
     {
         $panels['rebuetext-sms-panel'] = [
-            'title' => __('Rebuetext SMS', 'rebuetext_cf7_sms'),
+            'title' => __('Rebuetext SMS', 'rebuetext'),
             'callback' => 'rebuetext_cf7_sms_panel_callback'
         ];
         return $panels;

@@ -22,10 +22,27 @@ if (is_admin()) {
 
     function rebuetext_register_form_sms_settings()
     {
-        register_setting('rebuetext_form_sms', 'rebuetext_cf7_sms_enabled');
-        register_setting('rebuetext_form_sms', 'rebuetext_gf_sms_enabled');
-        register_setting('rebuetext_form_sms', 'rebuetext_cf7_sms_template');
-        register_setting('rebuetext_form_sms', 'rebuetext_gf_sms_template');
+        // Register settings with sanitization callbacks
+        register_setting(
+            'rebuetext_form_sms',
+            'rebuetext_cf7_sms_enabled',
+            ['sanitize_callback' => 'absint']
+        );
+        register_setting(
+            'rebuetext_form_sms',
+            'rebuetext_gf_sms_enabled',
+            ['sanitize_callback' => 'absint']
+        );
+        register_setting(
+            'rebuetext_form_sms',
+            'rebuetext_cf7_sms_template',
+            ['sanitize_callback' => 'sanitize_textarea_field']
+        );
+        register_setting(
+            'rebuetext_form_sms',
+            'rebuetext_gf_sms_template',
+            ['sanitize_callback' => 'sanitize_textarea_field']
+        );
 
         add_settings_section('cf7_sms', 'Contact Form 7 SMS', null, 'rebuetext-form-integrations');
         add_settings_field('cf7_enabled', 'Enable CF7 SMS', function () {
@@ -48,8 +65,8 @@ if (is_admin()) {
 // SMS function
 function rebuetext_send_sms($phone, $message, $correlator = 'custom')
 {
-    $api_token = get_option('rebuetext_api_token');
-    $sender_id = get_option('rebuetext_sender_id');
+    $api_token = sanitize_text_field(get_option('rebuetext_api_token'));
+    $sender_id = sanitize_text_field(get_option('rebuetext_sender_id'));
 
     if (empty($phone) || empty($message)) return;
 
@@ -61,14 +78,14 @@ function rebuetext_send_sms($phone, $message, $correlator = 'custom')
 
     $sms_data = [
         'sender'     => $sender_id,
-        'message'    => $message,
-        'phone'      => $phone,
-        'correlator' => $correlator
+        'message'    => sanitize_text_field($message),
+        'phone'      => sanitize_text_field($phone),
+        'correlator' => sanitize_key($correlator)
     ];
 
     $response = wp_remote_post('https://rebuetext.com/api/v1/send-sms', [
         'method'    => 'POST',
-        'body'      => json_encode($sms_data),
+        'body'      => wp_json_encode($sms_data),
         'headers'   => $headers,
         'timeout'   => 30,
     ]);
@@ -88,7 +105,6 @@ function rebuetext_cf7_sms_save_settings($cf7)
     update_option('wpcf7_rebuetext_sms_' . $form_id, $settings);
 }
 
-
 // Send SMS After for CF7 Form Submission
 add_action('wpcf7_mail_sent', 'rebuetext_cf7_send_sms_after_submission');
 function rebuetext_cf7_send_sms_after_submission($form)
@@ -103,7 +119,7 @@ function rebuetext_cf7_send_sms_after_submission($form)
     // Retrieve per-form settings or fallback to defaults
     $options = get_option('wpcf7_rebuetext_sms_' . $form_id, []);
     $default_options = [
-        'phone' => get_option('rebuetext_admin_phone', ''),  // fallback admin number
+        'phone' => sanitize_text_field(get_option('rebuetext_admin_phone', '')),  // fallback admin number
         'message' => 'New form submitted: [your-name] - [your-message]',
         'visitorNumber' => '[your-phone]',                  // fallback visitor number tag
         'visitorMessage' => 'Thank you [your-name], we received your message.'
@@ -134,7 +150,7 @@ function rebuetext_cf7_parse_tags($template, $form, $posted_data)
     // Replace CF7 tags manually
     if (preg_match_all('/\[(.+?)\]/', $template, $matches)) {
         foreach ($matches[1] as $tag) {
-            $replacement = isset($posted_data[$tag]) ? $posted_data[$tag] : '';
+            $replacement = isset($posted_data[$tag]) ? sanitize_text_field($posted_data[$tag]) : '';
             $template = str_replace("[$tag]", $replacement, $template);
         }
     }
@@ -145,8 +161,17 @@ add_action('admin_init', 'rebuetext_register_gf_settings');
 
 function rebuetext_register_gf_settings()
 {
-    register_setting('rebuetext_gf_settings', 'rebuetext_gf_admin_message');
-    register_setting('rebuetext_gf_settings', 'rebuetext_gf_visitor_message');
+    // Register settings with sanitization callbacks
+    register_setting(
+        'rebuetext_gf_settings',
+        'rebuetext_gf_admin_message',
+        ['sanitize_callback' => 'sanitize_textarea_field']
+    );
+    register_setting(
+        'rebuetext_gf_settings',
+        'rebuetext_gf_visitor_message',
+        ['sanitize_callback' => 'sanitize_textarea_field']
+    );
 
     add_settings_section('rebuetext_gf_main_section', 'SMS Templates', null, 'rebuetext-gf-integrations');
 
@@ -163,21 +188,14 @@ function rebuetext_register_gf_settings()
 add_action('gform_after_submission', 'rebuetext_gf_send_sms_on_submit', 10, 2);
 function rebuetext_gf_send_sms_on_submit($entry, $form)
 {
-    // Debugging
-    // error_log('GF Submission Form Data: ' . print_r($form, true));
-    // error_log(print_r($entry, true)); // Log the entry to check its contents
-    // error_log(print_r($form, true));  // Log the form to check its structure
-
     $form_id = $form['id'] ?? null;
     if (!$form_id) {
-        error_log('Form ID missing or invalid');
         return;
     }
 
     // Fetch saved settings
     $settings = get_option("rebuetext_gf_form_settings_{$form_id}", []);
     if (empty($settings['enabled'])) {
-        error_log("SMS Disabled for form ID {$form_id}");
         return;
     }
 
@@ -188,21 +206,27 @@ function rebuetext_gf_send_sms_on_submit($entry, $form)
     // Fetch visitor phone from entry using field ID
     $phone_number = rgar($entry, $phone_field_id);
     if (!$phone_number) {
-        error_log("Phone number missing for field ID {$phone_field_id}");
         return;
     }
 
-    // ✅ Replace merge tags in messages
+    // Sanitize phone number
+    $phone_number = sanitize_text_field($phone_number);
+
+    // Replace merge tags in messages
     $visitor_message = GFCommon::replace_variables($visitor_message_template, $form, $entry);
     $admin_message   = GFCommon::replace_variables($admin_message_template, $form, $entry);
 
-    // ✅ Send visitor SMS
+    // Sanitize messages
+    $visitor_message = sanitize_text_field($visitor_message);
+    $admin_message   = sanitize_text_field($admin_message);
+
+    // Send visitor SMS
     if (!empty($visitor_message)) {
         rebuetext_send_sms($phone_number, $visitor_message, "gf_form_{$form_id}");
     }
 
-    // ✅ Send admin SMS
-    $admin_phone = get_option('rebuetext_admin_phone');
+    // Send admin SMS
+    $admin_phone = sanitize_text_field(get_option('rebuetext_admin_phone'));
     if (!empty($admin_phone) && !empty($admin_message)) {
         rebuetext_send_sms($admin_phone, $admin_message, "gf_admin_{$form_id}");
     }

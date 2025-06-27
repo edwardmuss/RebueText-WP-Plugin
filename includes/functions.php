@@ -1,5 +1,6 @@
 <?php
 
+if (! defined('ABSPATH')) exit; // Exit if accessed directly
 if (is_admin()) {
     add_action('wp_ajax_save_rebuetext_settings', 'save_rebuetext_settings');
     add_action('admin_init', 'rebuetext_register_form_sms_settings');

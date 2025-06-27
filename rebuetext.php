@@ -60,7 +60,7 @@ function rebuetext_enqueue_admin_styles($hook)
         $hook === 'contact_page_rebuetext-form-integrations' || // your CF7 submenu
         (isset($_GET['page']) && $_GET['page'] === 'rebuetext-settings')
     ) {
-        wp_enqueue_style('rebuetext-bootstrap', 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css');
+        wp_enqueue_style('rebuetext-bootstrap', REBUETEXT_PLUGIN_URL . 'assets/css/bootstrap.min.css');
         wp_enqueue_style('rebuetext-admin-style', REBUETEXT_PLUGIN_URL . 'assets/css/admin-style.css');
     }
 }
@@ -75,7 +75,7 @@ function rebuetext_enqueue_admin_scripts($hook)
         (isset($_GET['page']) && $_GET['page'] === 'wpcf7')
     ) {
         // Bootstrap JS (Ensure jQuery is available)
-        wp_enqueue_script('rebuetext-bootstrap-js', 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js', array('jquery'), null, true);
+        wp_enqueue_script('rebuetext-bootstrap-js', REBUETEXT_PLUGIN_URL . 'assets/js/bootstrap.bundle.min.js', array('jquery'), null, true);
 
         // Custom Admin JS
         wp_enqueue_script('rebuetext-admin-js', REBUETEXT_PLUGIN_URL . 'assets/js/admin-script.js', array('jquery'), null, true);

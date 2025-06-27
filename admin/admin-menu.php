@@ -1,4 +1,6 @@
 <?php
+if (! defined('ABSPATH')) exit; // Exit if accessed directly
+
 function rebuetext_admin_menu()
 {
     // Main Menu

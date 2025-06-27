@@ -1,5 +1,5 @@
 === RebueText ===
-Contributors: edwardmuss  
+Contributors: cloudrebue
 Tags: SMS, WooCommerce, notifications, contact form 7, gravity forms, WPForms  
 Requires at least: 5.0  
 Tested up to: 6.8  
@@ -127,6 +127,10 @@ New form submission received:
 
 Developed by [Edward Muss](https://edwardmuss.tech)  
 Project URL: [https://rebuetext.com/plugins](https://rebuetext.com/plugins)
+
+== Privacy Policy ==
+
+Your privacy is important. This plugin collects minimal data necessary for its operation. Any data collected is used solely for providing the plugin's functionality and is not shared with third parties. For more details, please refer to our full Privacy Policy at: [https://rebuetext.com/privacy-policy].
 
 == License ==
 

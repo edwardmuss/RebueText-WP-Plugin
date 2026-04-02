@@ -17,7 +17,7 @@ jQuery(document).ready(function ($) {
       url: ajaxurl,
       type: "POST",
       data: {
-        action: "save_rebuetext_settings",
+        action: "rebuetext_save_settings",
         data: formData,
         security: $("#rebuetext_ajax_nonce").val(),
       },

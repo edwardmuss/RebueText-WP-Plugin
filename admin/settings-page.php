@@ -3,7 +3,11 @@ if (!defined('ABSPATH')) exit;
 
 function rebuetext_settings_page()
 {
-    $statuses = wc_get_order_statuses();
+    if (!current_user_can('manage_options')) {
+        wp_die(esc_html__('You do not have sufficient permissions to access this page.', 'rebuetext'));
+    }
+
+    $statuses = function_exists('wc_get_order_statuses') ? wc_get_order_statuses() : [];
     $enabled_statuses = get_option('rebuetext_enabled_statuses', []);
     $customer_templates = get_option('rebuetext_customer_templates', []);
     $admin_templates = get_option('rebuetext_admin_templates', []);
@@ -44,112 +48,108 @@ function rebuetext_settings_page()
                     </div>
                 </div>
 
-                <div class="card mb-4 w-100">
-                    <div class="card-header bg-light">
-                        <h5 class="mb-0"><?php esc_html_e('Enable SMS for Statuses', 'rebuetext'); ?></h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3 d-flex justify-content-end">
-                            <button type="button" class="btn btn-sm btn-outline-primary" id="toggle-all-statuses">
-                                <?php esc_html_e('Select All', 'rebuetext'); ?>
-                            </button>
+                <?php if (!empty($statuses)): ?>
+                    <div class="card mb-4 w-100">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><?php esc_html_e('Enable SMS for Statuses', 'rebuetext'); ?></h5>
                         </div>
-                        <div class="row g-3">
-                            <?php foreach ($statuses as $key => $status) { ?>
-                                <div class="col-md-6 col-lg-4">
-                                    <div class="form-check form-switch rebuetext-switch-group" data-bs-toggle="tooltip" title="<?php echo esc_attr(sprintf(__('Enable SMS for %s', 'rebuetext'), $status)); ?>">
-                                        <input class="form-check-input status-switch" type="checkbox" role="switch"
-                                            id="status_<?php echo esc_attr($key); ?>"
-                                            name="rebuetext_enabled_statuses[]"
-                                            value="<?php echo esc_attr($key); ?>"
-                                            <?php echo in_array($key, $enabled_statuses) ? 'checked' : ''; ?>>
-                                        <label class="form-check-label d-flex align-items-center gap-2" for="status_<?php echo esc_attr($key); ?>">
-                                            <span><?php echo esc_html($status); ?></span>
-                                            <span class="status-icon"><?php echo in_array($key, $enabled_statuses) ? '✅' : '❌'; ?></span>
-                                        </label>
-                                    </div>
-                                </div>
-                            <?php } ?>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card mb-4 w-100">
-                    <div class="card-header bg-light">
-                        <h5 class="mb-0"><?php esc_html_e('SMS Templates', 'rebuetext'); ?></h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-4">
-                            <h6><?php esc_html_e('Available Merge Tags', 'rebuetext'); ?></h6>
-                            <div class="merge-tags mb-3">
-                                <?php
-                                $merge_tags = [
-                                    'billing_first_name',
-                                    'billing_last_name',
-                                    'billing_company',
-                                    'billing_address',
-                                    'billing_country',
-                                    'billing_city',
-                                    'billing_state',
-                                    'billing_email',
-                                    'billing_phone',
-                                    'payment_method',
-                                    'payment_method_title',
-                                    'date_created',
-                                    'date_modified',
-                                    'date_completed',
-                                    'date_paid',
-                                    'order_id',
-                                    'order_number',
-                                    'order_total',
-                                    'order_discount',
-                                    'order_currency',
-                                    'status',
-                                ];
-                                foreach ($merge_tags as $tag) {
-                                    echo '<span class="merge-tag badge bg-primary-2 me-2 mb-2" data-tag="' . esc_attr($tag) . '">' . esc_html($tag) . '</span>';
-                                }
-                                ?>
+                        <div class="card-body">
+                            <div class="mb-3 d-flex justify-content-end">
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="toggle-all-statuses">
+                                    <?php esc_html_e('Select All', 'rebuetext'); ?>
+                                </button>
                             </div>
-                            <small class="text-muted"><?php esc_html_e('Click on any tag to copy it to clipboard', 'rebuetext'); ?></small>
+                            <div class="row g-3">
+                                <?php foreach ($statuses as $key => $status) { ?>
+                                    <div class="col-md-6 col-lg-4">
+                                        <div class="form-check form-switch rebuetext-switch-group" data-bs-toggle="tooltip" title="<?php echo esc_attr(sprintf(__('Enable SMS for %s', 'rebuetext'), $status)); ?>">
+                                            <input class="form-check-input status-switch" type="checkbox" role="switch"
+                                                id="status_<?php echo esc_attr($key); ?>"
+                                                name="rebuetext_enabled_statuses[]"
+                                                value="<?php echo esc_attr($key); ?>"
+                                                <?php echo in_array($key, $enabled_statuses) ? 'checked' : ''; ?>>
+                                            <label class="form-check-label d-flex align-items-center gap-2" for="status_<?php echo esc_attr($key); ?>">
+                                                <span><?php echo esc_html($status); ?></span>
+                                                <span class="status-icon"><?php echo in_array($key, $enabled_statuses) ? '✅' : '❌'; ?></span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                <?php } ?>
+                            </div>
                         </div>
+                    </div>
 
-                        <div class="accordion" id="templatesAccordion">
-                            <?php foreach ($statuses as $key => $status) { ?>
-                                <div class="accordion-item">
-                                    <h2 class="accordion-header" id="heading<?php echo esc_attr($key); ?>">
-                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
-                                            data-bs-target="#collapse<?php echo esc_attr($key); ?>"
-                                            aria-expanded="false" aria-controls="collapse<?php echo esc_attr($key); ?>">
-                                            <?php echo esc_html($status); ?>
-                                        </button>
-                                    </h2>
-                                    <div id="collapse<?php echo esc_attr($key); ?>" class="accordion-collapse collapse"
-                                        aria-labelledby="heading<?php echo esc_attr($key); ?>"
-                                        data-bs-parent="#templatesAccordion">
-                                        <div class="accordion-body">
-                                            <div class="mb-3">
-                                                <label class="form-label"><?php esc_html_e('Customer SMS Template', 'rebuetext'); ?></label>
-                                                <textarea class="form-control" rows="3"
-                                                    name="rebuetext_customer_templates[<?php echo esc_attr($key); ?>]">
-                                                    <?php
-                                                    echo isset($customer_templates[$key]) ? esc_textarea($customer_templates[$key]) : '';
-                                                    ?></textarea>
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label"><?php esc_html_e('Admin SMS Template', 'rebuetext'); ?></label>
-                                                <textarea class="form-control" rows="3"
-                                                    name="rebuetext_admin_templates[<?php echo esc_attr($key); ?>]"><?php
-                                                                                                                    echo isset($admin_templates[$key]) ? esc_textarea($admin_templates[$key]) : '';
-                                                                                                                    ?></textarea>
+                    <div class="card mb-4 w-100">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><?php esc_html_e('SMS Templates', 'rebuetext'); ?></h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-4">
+                                <h6><?php esc_html_e('Available Merge Tags', 'rebuetext'); ?></h6>
+                                <div class="merge-tags mb-3">
+                                    <?php
+                                    $merge_tags = [
+                                        'billing_first_name',
+                                        'billing_last_name',
+                                        'billing_company',
+                                        'billing_address',
+                                        'billing_country',
+                                        'billing_city',
+                                        'billing_state',
+                                        'billing_email',
+                                        'billing_phone',
+                                        'payment_method',
+                                        'payment_method_title',
+                                        'date_created',
+                                        'date_modified',
+                                        'date_completed',
+                                        'date_paid',
+                                        'order_id',
+                                        'order_number',
+                                        'order_total',
+                                        'order_discount',
+                                        'order_currency',
+                                        'status',
+                                    ];
+                                    foreach ($merge_tags as $tag) {
+                                        echo '<span class="merge-tag badge bg-primary-2 me-2 mb-2" data-tag="' . esc_attr('{' . $tag . '}') . '">' . esc_html('{' . $tag . '}') . '</span>';
+                                    }
+                                    ?>
+                                </div>
+                                <small class="text-muted"><?php esc_html_e('Click on any tag to copy it to clipboard', 'rebuetext'); ?></small>
+                            </div>
+
+                            <div class="accordion" id="templatesAccordion">
+                                <?php foreach ($statuses as $key => $status) { ?>
+                                    <div class="accordion-item">
+                                        <h2 class="accordion-header" id="heading<?php echo esc_attr($key); ?>">
+                                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                                data-bs-target="#collapse<?php echo esc_attr($key); ?>"
+                                                aria-expanded="false" aria-controls="collapse<?php echo esc_attr($key); ?>">
+                                                <?php echo esc_html($status); ?>
+                                            </button>
+                                        </h2>
+                                        <div id="collapse<?php echo esc_attr($key); ?>" class="accordion-collapse collapse"
+                                            aria-labelledby="heading<?php echo esc_attr($key); ?>"
+                                            data-bs-parent="#templatesAccordion">
+                                            <div class="accordion-body">
+                                                <div class="mb-3">
+                                                    <label class="form-label"><?php esc_html_e('Customer SMS Template', 'rebuetext'); ?></label>
+                                                    <textarea class="form-control" rows="3" name="rebuetext_customer_templates[<?php echo esc_attr($key); ?>]"><?php echo isset($customer_templates[$key]) ? esc_textarea($customer_templates[$key]) : ''; ?></textarea>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label"><?php esc_html_e('Admin SMS Template', 'rebuetext'); ?></label>
+                                                    <textarea class="form-control" rows="3"
+                                                        name="rebuetext_admin_templates[<?php echo esc_attr($key); ?>]"><?php echo isset($admin_templates[$key]) ? esc_textarea($admin_templates[$key]) : ''; ?></textarea>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            <?php } ?>
+                                <?php } ?>
+                            </div>
                         </div>
                     </div>
-                </div>
+                <?php endif; ?>
 
                 <div class="status-message mb-3"></div>
                 <button type="submit" id="save-settings-btn" class="btn btn-primary-2"><?php esc_html_e('Save Settings', 'rebuetext'); ?></button>
@@ -162,7 +162,8 @@ function rebuetext_settings_page()
 function rebuetext_cf7_sms_panel_callback($form)
 {
     $form_id = $form->id();
-    $data = get_option('wpcf7_rebuetext_sms_' . $form_id, [
+    // Corrected option prefix
+    $data = get_option('rebuetext_cf7_sms_data_' . $form_id, [
         'phone'          => '',
         'message'        => '',
         'visitorNumber'  => '',
@@ -218,6 +219,10 @@ function rebuetext_cf7_sms_panel_callback($form)
 
 function rebuetext_form_integrations_page()
 {
+    if (!current_user_can('manage_options')) {
+        wp_die(esc_html__('You do not have sufficient permissions to access this page.', 'rebuetext'));
+    }
+
     $cf7_forms = get_posts([
         'post_type'   => 'wpcf7_contact_form',
         'numberposts' => -1
@@ -237,7 +242,7 @@ function rebuetext_form_integrations_page()
                     <tr>
                         <td><?php echo esc_html($form->post_title); ?></td>
                         <td>
-                            <a class="button button-primary" href="<?php echo esc_url(admin_url('admin.php?page=wpcf7&post=' . $form->ID . '&action=edit&rebuetext_sms_tab=1')); ?>">
+                            <a class="button button-primary" href="<?php echo esc_url(admin_url('admin.php?page=wpcf7&post=' . intval($form->ID) . '&action=edit&rebuetext_sms_tab=1')); ?>">
                                 <?php esc_html_e('Edit SMS Settings', 'rebuetext'); ?>
                             </a>
                         </td>
@@ -251,6 +256,10 @@ function rebuetext_form_integrations_page()
 
 function rebuetext_sms_balance_page()
 {
+    if (!current_user_can('manage_options')) {
+        wp_die(esc_html__('You do not have sufficient permissions to access this page.', 'rebuetext'));
+    }
+
     $api_token = get_option('rebuetext_api_token');
 
     if (!$api_token) {
@@ -260,9 +269,8 @@ function rebuetext_sms_balance_page()
             <div class="notice notice-error">
                 <p><?php
                     printf(
-                        esc_html__('Please set your API token in the %sRebuetext settings%s page to check your balance.', 'rebuetext'),
-                        '<a href="' . esc_url(admin_url('admin.php?page=rebuetext-settings')) . '">',
-                        '</a>'
+                        wp_kses_post(__('Please set your API token in the <a href="%s">Rebuetext settings</a> page to check your balance.', 'rebuetext')),
+                        esc_url(admin_url('admin.php?page=rebuetext-settings'))
                     );
                     ?></p>
             </div>
@@ -294,8 +302,8 @@ function rebuetext_sms_balance_page()
             $http_status = wp_remote_retrieve_response_code($response);
             $body = json_decode(wp_remote_retrieve_body($response), true);
 
-            if ($http_status === 200 && isset($body['status']) && $body['status'] && isset($body['data']['account_units'])) {
-                $units = esc_html($body['data']['account_units']);
+            if ($http_status === 200 && isset($body['status']) && $body['status'] && isset($body['data']['balance_kes'])) {
+                $units = esc_html($body['data']['balance_kes']);
                 $date = isset($body['data']['date']) ? esc_html($body['data']['date']) : esc_html__('N/A', 'rebuetext');
             ?>
                 <div class="card w-100">
@@ -304,7 +312,7 @@ function rebuetext_sms_balance_page()
                         <tr>
                             <th scope="row"><?php esc_html_e('Available Units', 'rebuetext'); ?></th>
                             <td>
-                                <strong style="font-size: 1.2em;"><?php echo esc_html($units); ?></strong>
+                                <strong style="font-size: 1.2em;"><?php esc_html_e('KES', 'rebuetext'); ?> <?php echo esc_html($units); ?></strong>
                             </td>
                         </tr>
                         <tr>
@@ -345,14 +353,20 @@ function rebuetext_sms_balance_page()
 
 function rebuetext_gf_form_settings_page()
 {
-    if (!current_user_can('manage_options')) {
-        wp_die(esc_html__('You do not have sufficient permissions.', 'rebuetext'));
+    // Authorization Check
+    if (! current_user_can('manage_options')) {
+        wp_die(esc_html__('You do not have sufficient permissions to access this page.', 'rebuetext'));
     }
 
+    // Data Validation
     $form_id = isset($_GET['id']) ? absint($_GET['id']) : 0;
-    $form = \GFAPI::get_form($form_id);
 
-    if (!$form) {
+    if (! class_exists('GFAPI')) {
+        wp_die(esc_html__('Gravity Forms is not active.', 'rebuetext'));
+    }
+
+    $form = \GFAPI::get_form($form_id);
+    if (! $form) {
         echo '<div class="error notice"><p>' . esc_html__('Form not found.', 'rebuetext') . '</p></div>';
         return;
     }
@@ -365,18 +379,30 @@ function rebuetext_gf_form_settings_page()
     ]);
 
     if (isset($_POST['rebuetext_sms_save'])) {
+        // Verify the Nonce using strict sanitization
+        $nonce = isset($_POST['rebuetext_gf_settings_nonce']) ? sanitize_text_field(wp_unslash($_POST['rebuetext_gf_settings_nonce'])) : '';
+        if (! wp_verify_nonce($nonce, 'save_rebuetext_gf_settings')) {
+            wp_die(esc_html__('Security check failed. Please refresh the page and try again.', 'rebuetext'));
+        }
+
         $settings['enabled']         = isset($_POST['enabled']);
-        $settings['phone_field_id']  = sanitize_text_field($_POST['phone_field_id']);
-        $settings['visitor_message'] = sanitize_textarea_field($_POST['visitor_message']);
-        $settings['admin_message']   = sanitize_textarea_field($_POST['admin_message']);
+        $settings['phone_field_id']  = isset($_POST['phone_field_id']) ? sanitize_text_field($_POST['phone_field_id']) : '';
+        $settings['visitor_message'] = isset($_POST['visitor_message']) ? sanitize_textarea_field($_POST['visitor_message']) : '';
+        $settings['admin_message']   = isset($_POST['admin_message']) ? sanitize_textarea_field($_POST['admin_message']) : '';
+
         update_option("rebuetext_gf_form_settings_{$form_id}", $settings);
-        update_option('rebuetext_admin_phone', sanitize_text_field($_POST['admin_phone_number']));
+
+        if (isset($_POST['admin_phone_number'])) {
+            update_option('rebuetext_admin_phone', sanitize_text_field($_POST['admin_phone_number']));
+        }
 
         echo '<div class="updated notice"><p>' . esc_html__('Settings saved.', 'rebuetext') . '</p></div>';
     }
 
 ?>
     <form method="post">
+        <?php wp_nonce_field('save_rebuetext_gf_settings', 'rebuetext_gf_settings_nonce'); ?>
+
         <h3><?php printf(esc_html__('RebueText SMS Settings for Form: %s', 'rebuetext'), esc_html($form['title'])); ?></h3>
 
         <p>
@@ -400,10 +426,9 @@ function rebuetext_gf_form_settings_page()
                     <?php
                     $field_id = $field->id;
                     $field_label = $field->label;
-                    $selected = selected($settings['phone_field_id'], $field_id, false);
                     ?>
-                    <option value="<?php echo esc_attr($field_id); ?>" <?php echo $selected; ?>>
-                        <?php echo esc_html("{$field_label} (ID: {$field_id})"); ?>
+                    <option value="<?php echo esc_attr($field_id); ?>" <?php selected($settings['phone_field_id'], $field_id); ?>>
+                        <?php echo esc_html(sprintf('%1$s (ID: %2$s)', $field_label, $field_id)); ?>
                     </option>
                 <?php endforeach; ?>
             </select>
@@ -418,7 +443,7 @@ function rebuetext_gf_form_settings_page()
             <?php foreach ($form['fields'] as $field): ?>
                 <li>
                     <?php
-                    if ($field->type === 'name') {
+                    if ($field->type === 'name' && isset($field->inputs) && is_array($field->inputs)) {
                         echo esc_html($field->label) . ' — ';
                         foreach ($field->inputs as $input) {
                             echo esc_html($input['label']) . ': ';
@@ -440,21 +465,38 @@ function rebuetext_gf_form_settings_page()
 
         <?php submit_button(esc_html__('Save SMS Settings', 'rebuetext'), 'primary', 'rebuetext_sms_save'); ?>
     </form>
-<?php
+    <?php
 }
 
 function rebuetext_gravityforms_redirect_to_gf()
 {
-    if (class_exists('GFForms') && current_user_can('gravityforms_edit_forms')) {
-        wp_redirect(esc_url_raw(admin_url('admin.php?page=gf_edit_forms')));
+    // Ensure the user has permission and the class exists
+    if (class_exists('GFForms') && current_user_can('manage_options')) {
+
+        // 1. Use admin_url() to get the destination
+        $redirect_url = admin_url('admin.php?page=gf_edit_forms');
+
+        // 2. Use wp_safe_redirect() with esc_url_raw()
+        wp_safe_redirect(esc_url_raw($redirect_url));
+
+        // 3. Always call exit() immediately after
         exit;
     } else {
-        echo '<div class="wrap">';
-        echo '<h1>' . esc_html__('Gravity Forms Integration', 'rebuetext') . '</h1>';
-        echo '<p>' . esc_html__('Gravity Forms is not active or you do not have permission to view the forms.', 'rebuetext') . '</p>';
-        if (class_exists('GFForms')) {
-            echo '<p><a href="' . esc_url(admin_url('admin.php?page=gf_edit_forms')) . '">' . esc_html__('Go to Gravity Forms', 'rebuetext') . '</a></p>';
+        if (!current_user_can('manage_options')) {
+            wp_die(esc_html__('You do not have permission to view this page.', 'rebuetext'));
         }
-        echo '</div>';
+    ?>
+        <div class="wrap">
+            <h1><?php esc_html_e('Gravity Forms Integration', 'rebuetext'); ?></h1>
+            <p><?php esc_html_e('Gravity Forms is not active or you do not have permission to view the forms.', 'rebuetext'); ?></p>
+            <?php if (class_exists('GFForms')) : ?>
+                <p>
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=gf_edit_forms')); ?>" class="button">
+                        <?php esc_html_e('Go to Gravity Forms', 'rebuetext'); ?>
+                    </a>
+                </p>
+            <?php endif; ?>
+        </div>
+<?php
     }
 }

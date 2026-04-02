@@ -52,25 +52,10 @@ function rebuetext_sms_logs_page()
     </div>
 
     <!-- Modal -->
-    <div id="response-modal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:white; padding:20px; border-radius:5px; box-shadow:0px 0px 10px rgba(0,0,0,0.2);">
+    <div id="response-modal">
         <h3>Response Details</h3>
         <p id="modal-response-content"></p>
         <button id="close-modal" class="button button-secondary">Close</button>
     </div>
-
-    <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            document.querySelectorAll(".view-response").forEach(button => {
-                button.addEventListener("click", function() {
-                    document.getElementById("modal-response-content").textContent = this.dataset.response;
-                    document.getElementById("response-modal").style.display = "block";
-                });
-            });
-
-            document.getElementById("close-modal").addEventListener("click", function() {
-                document.getElementById("response-modal").style.display = "none";
-            });
-        });
-    </script>
 <?php
 }

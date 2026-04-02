@@ -1,22 +1,43 @@
 <?php
 
 if (! defined('ABSPATH')) exit; // Exit if accessed directly
+
 if (is_admin()) {
-    add_action('wp_ajax_save_rebuetext_settings', 'save_rebuetext_settings');
+    // Corrected action prefix
+    add_action('wp_ajax_rebuetext_save_settings', 'rebuetext_save_settings');
     add_action('admin_init', 'rebuetext_register_form_sms_settings');
 
-    function save_rebuetext_settings()
+    function rebuetext_save_settings()
     {
-        check_ajax_referer('rebuetext_nonce', 'security');
+        // Authorization check
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Unauthorized', 403);
+        }
 
-        parse_str($_POST['data'], $settings_data);
+        // Proper nonce sanitization and verification
+        $nonce = isset($_POST['security']) ? sanitize_text_field(wp_unslash($_POST['security'])) : '';
+        if (!wp_verify_nonce($nonce, 'rebuetext_nonce')) {
+            wp_send_json_error('Invalid security token', 403);
+        }
 
-        update_option('rebuetext_api_token', sanitize_text_field($settings_data['rebuetext_api_token']));
-        update_option('rebuetext_sender_id', sanitize_text_field($settings_data['rebuetext_sender_id']));
-        update_option('rebuetext_admin_phone', sanitize_text_field($settings_data['rebuetext_admin_phone']));
-        update_option('rebuetext_enabled_statuses', isset($settings_data['rebuetext_enabled_statuses']) ? array_map('sanitize_text_field', $settings_data['rebuetext_enabled_statuses']) : []);
-        update_option('rebuetext_customer_templates', isset($settings_data['rebuetext_customer_templates']) ? array_map('sanitize_textarea_field', $settings_data['rebuetext_customer_templates']) : []);
-        update_option('rebuetext_admin_templates', isset($settings_data['rebuetext_admin_templates']) ? array_map('sanitize_textarea_field', $settings_data['rebuetext_admin_templates']) : []);
+        // FIX: Do NOT sanitize the raw serialized string here, as it destroys URL-encoded arrays and textareas.
+        // Unslash it, parse it, and then sanitize the individual elements below.
+        $raw_data = isset($_POST['data']) ? wp_unslash($_POST['data']) : '';
+        parse_str($raw_data, $settings_data);
+
+        // Sanitize and update individual elements safely
+        update_option('rebuetext_api_token', isset($settings_data['rebuetext_api_token']) ? sanitize_text_field($settings_data['rebuetext_api_token']) : '');
+        update_option('rebuetext_sender_id', isset($settings_data['rebuetext_sender_id']) ? sanitize_text_field($settings_data['rebuetext_sender_id']) : '');
+        update_option('rebuetext_admin_phone', isset($settings_data['rebuetext_admin_phone']) ? sanitize_text_field($settings_data['rebuetext_admin_phone']) : '');
+
+        $statuses = isset($settings_data['rebuetext_enabled_statuses']) && is_array($settings_data['rebuetext_enabled_statuses']) ? array_map('sanitize_text_field', $settings_data['rebuetext_enabled_statuses']) : [];
+        update_option('rebuetext_enabled_statuses', $statuses);
+
+        $customer_templates = isset($settings_data['rebuetext_customer_templates']) && is_array($settings_data['rebuetext_customer_templates']) ? array_map('sanitize_textarea_field', $settings_data['rebuetext_customer_templates']) : [];
+        update_option('rebuetext_customer_templates', $customer_templates);
+
+        $admin_templates = isset($settings_data['rebuetext_admin_templates']) && is_array($settings_data['rebuetext_admin_templates']) ? array_map('sanitize_textarea_field', $settings_data['rebuetext_admin_templates']) : [];
+        update_option('rebuetext_admin_templates', $admin_templates);
 
         wp_send_json_success('Settings saved successfully!');
     }
@@ -91,19 +112,28 @@ function rebuetext_send_sms($phone, $message, $correlator = 'custom')
         'timeout'   => 30,
     ]);
 
-    rebuetext_log_sms($sender_id, $phone, $message, $response);
+    if (function_exists('rebuetext_log_sms')) {
+        rebuetext_log_sms($sender_id, $phone, $message, $response);
+    }
 }
 
 // Save the CF7 settings on form save
 add_action('wpcf7_save_contact_form', 'rebuetext_cf7_sms_save_settings');
 function rebuetext_cf7_sms_save_settings($cf7)
 {
-    if (!isset($_POST['wpcf7si-settings'])) return;
+    // Nonce check for CF7 form save using proper sanitization
+    $nonce = isset($_POST['_wpnonce']) ? sanitize_text_field(wp_unslash($_POST['_wpnonce'])) : '';
+    if (!wp_verify_nonce($nonce, 'wpcf7_save_contact_form_' . $cf7->id())) {
+        return;
+    }
+
+    if (!isset($_POST['wpcf7si-settings']) || !is_array($_POST['wpcf7si-settings'])) return;
 
     $form_id = $cf7->id();
     $settings = array_map('sanitize_text_field', $_POST['wpcf7si-settings']);
 
-    update_option('wpcf7_rebuetext_sms_' . $form_id, $settings);
+    // Prefixed option name correctly
+    update_option('rebuetext_cf7_sms_data_' . $form_id, $settings);
 }
 
 // Send SMS After for CF7 Form Submission
@@ -117,12 +147,12 @@ function rebuetext_cf7_send_sms_after_submission($form)
 
     $posted_data = $submission->get_posted_data();
 
-    // Retrieve per-form settings or fallback to defaults
-    $options = get_option('wpcf7_rebuetext_sms_' . $form_id, []);
+    // Retrieve per-form settings using the updated prefix
+    $options = get_option('rebuetext_cf7_sms_data_' . $form_id, []);
     $default_options = [
-        'phone' => sanitize_text_field(get_option('rebuetext_admin_phone', '')),  // fallback admin number
+        'phone' => sanitize_text_field(get_option('rebuetext_admin_phone', '')),
         'message' => 'New form submitted: [your-name] - [your-message]',
-        'visitorNumber' => '[your-phone]',                  // fallback visitor number tag
+        'visitorNumber' => '[your-phone]',
         'visitorMessage' => 'Thank you [your-name], we received your message.'
     ];
 

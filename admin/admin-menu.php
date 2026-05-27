@@ -11,7 +11,7 @@ function rebuetext_admin_menu()
         'rebuetext-settings',       // Menu Slug
         'rebuetext_settings_page',  // Function to Display Page
         'dashicons-email',          // Icon
-        25                          // Position
+        99                          // Position
     );
 
     // SMS Settings Submenu
@@ -36,11 +36,11 @@ function rebuetext_admin_menu()
 
     // Add the submenu page that will redirect
     add_submenu_page(
-        'rebuetext-settings', // Parent slug (your main plugin menu)
+        'rebuetext-settings', // Parent slug
         'Gravity Forms Integration', // Page title
-        'Gravity Forms', // Menu title (you can shorten it for the menu)
+        'Gravity Forms', // Menu title
         'manage_options', // Capability
-        'rebuetext-gf-integrations-redirect', // **Use a different slug for the redirect page**
+        'rebuetext-gf-integrations-redirect',
         'rebuetext_gravityforms_redirect_to_gf' // Callback function for redirection
     );
 
@@ -83,29 +83,28 @@ function rebuetext_admin_menu()
         'rebuetext-form-integrations',
         'rebuetext_form_integrations_page'
     );
+}
+add_action('admin_menu', 'rebuetext_admin_menu');
 
-    // show an extra tab in the Contact Form 7 form editor UI
-    add_filter('wpcf7_editor_panels', 'rebuetext_cf7_add_sms_tab');
-    function rebuetext_cf7_add_sms_tab($panels)
-    {
-        $panels['rebuetext-sms-panel'] = [
-            'title' => __('Rebuetext SMS', 'rebuetext'),
-            'callback' => 'rebuetext_cf7_sms_panel_callback'
-        ];
-        return $panels;
-    }
-
-    // Hook into the Gravity Forms Settings UI
-    add_filter('gform_form_settings_menu', 'rebuetext_add_sms_tab_to_gf');
-    function rebuetext_add_sms_tab_to_gf($tabs)
-    {
-        $tabs[] = [
-            'name'  => 'rebuetext_sms',
-            'label' => 'RebueText SMS',
-            'icon'  => 'dashicons-email'
-        ];
-        return $tabs;
-    }
+// show an extra tab in the Contact Form 7 form editor UI
+add_filter('wpcf7_editor_panels', 'rebuetext_cf7_add_sms_tab');
+function rebuetext_cf7_add_sms_tab($panels)
+{
+    $panels['rebuetext-sms-panel'] = [
+        'title' => __('Rebuetext SMS', 'rebuetext'),
+        'callback' => 'rebuetext_cf7_sms_panel_callback'
+    ];
+    return $panels;
 }
 
-add_action('admin_menu', 'rebuetext_admin_menu');
+// Hook into the Gravity Forms Settings UI
+add_filter('gform_form_settings_menu', 'rebuetext_add_sms_tab_to_gf');
+function rebuetext_add_sms_tab_to_gf($tabs)
+{
+    $tabs[] = [
+        'name'  => 'rebuetext_sms',
+        'label' => 'RebueText SMS',
+        'icon'  => 'dashicons-email'
+    ];
+    return $tabs;
+}

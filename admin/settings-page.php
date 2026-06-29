@@ -12,6 +12,11 @@ function rebuetext_settings_page()
     $customer_templates = get_option('rebuetext_customer_templates', []);
     $admin_templates = get_option('rebuetext_admin_templates', []);
     $admin_phone = get_option('rebuetext_admin_phone', '');
+
+    $api_env = get_option('rebuetext_api_env', 'production');
+    $channels = get_option('rebuetext_channels', []);
+    $wa_mappings = get_option('rebuetext_wa_mappings', []);
+    $wa_templates = function_exists('rebuetext_fetch_whatsapp_templates') ? rebuetext_fetch_whatsapp_templates() : []
 ?>
     <div class="wrap">
         <div class="toast-container position-fixed bottom-0 end-0 p-3"></div>
@@ -29,20 +34,32 @@ function rebuetext_settings_page()
                     </div>
                     <div class="card-body">
                         <div class="row g-3">
-                            <div class="col-md-6">
+                            <div class="col-md-12">
                                 <label for="rebuetext_api_token" class="form-label"><?php esc_html_e('API Token', 'rebuetext'); ?></label>
-                                <input type="text" class="form-control" name="rebuetext_api_token"
+                                <input type="password" class="form-control" name="rebuetext_api_token"
                                     value="<?php echo esc_attr(get_option('rebuetext_api_token')); ?>" required>
                             </div>
                             <div class="col-md-6">
-                                <label for="rebuetext_sender_id" class="form-label"><?php esc_html_e('Sender ID', 'rebuetext'); ?></label>
+                                <label for="rebuetext_sender_id" class="form-label"><?php esc_html_e('SMS Sender ID', 'rebuetext'); ?></label>
                                 <input type="text" class="form-control" name="rebuetext_sender_id"
                                     value="<?php echo esc_attr(get_option('rebuetext_sender_id')); ?>" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="rebuetext_wa_phone" class="form-label text-success"><i class="dashicons dashicons-whatsapp"></i> <?php esc_html_e('WhatsApp Sender Phone', 'rebuetext'); ?></label>
+                                <input type="text" class="form-control" name="rebuetext_wa_phone"
+                                    value="<?php echo esc_attr(get_option('rebuetext_wa_phone')); ?>" placeholder="e.g. 254741226412">
                             </div>
                             <div class="col-md-6">
                                 <label for="rebuetext_admin_phone" class="form-label"><?php esc_html_e('Admin Phone Number', 'rebuetext'); ?></label>
                                 <input type="text" class="form-control" name="rebuetext_admin_phone"
                                     value="<?php echo esc_attr($admin_phone); ?>" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="rebuetext_api_env" class="form-label"><?php esc_html_e('API Environment', 'rebuetext'); ?></label>
+                                <select class="form-select" name="rebuetext_api_env" id="rebuetext_api_env">
+                                    <option value="production" <?php selected($api_env, 'production'); ?>><?php esc_html_e('Production (rebuetext.com)', 'rebuetext'); ?></option>
+                                    <option value="local" <?php selected($api_env, 'local'); ?>><?php esc_html_e('Local Development (127.0.0.1)', 'rebuetext'); ?></option>
+                                </select>
                             </div>
                         </div>
                     </div>
@@ -84,41 +101,6 @@ function rebuetext_settings_page()
                             <h5 class="mb-0"><?php esc_html_e('SMS Templates', 'rebuetext'); ?></h5>
                         </div>
                         <div class="card-body">
-                            <div class="mb-4">
-                                <h6><?php esc_html_e('Available Merge Tags', 'rebuetext'); ?></h6>
-                                <div class="merge-tags mb-3">
-                                    <?php
-                                    $merge_tags = [
-                                        'billing_first_name',
-                                        'billing_last_name',
-                                        'billing_company',
-                                        'billing_address',
-                                        'billing_country',
-                                        'billing_city',
-                                        'billing_state',
-                                        'billing_email',
-                                        'billing_phone',
-                                        'payment_method',
-                                        'payment_method_title',
-                                        'date_created',
-                                        'date_modified',
-                                        'date_completed',
-                                        'date_paid',
-                                        'order_id',
-                                        'order_number',
-                                        'order_total',
-                                        'order_discount',
-                                        'order_currency',
-                                        'status',
-                                    ];
-                                    foreach ($merge_tags as $tag) {
-                                        echo '<span class="merge-tag badge bg-primary-2 me-2 mb-2" data-tag="' . esc_attr('{' . $tag . '}') . '">' . esc_html('{' . $tag . '}') . '</span>';
-                                    }
-                                    ?>
-                                </div>
-                                <small class="text-muted"><?php esc_html_e('Click on any tag to copy it to clipboard', 'rebuetext'); ?></small>
-                            </div>
-
                             <div class="accordion" id="templatesAccordion">
                                 <?php foreach ($statuses as $key => $status) { ?>
                                     <div class="accordion-item">
@@ -132,16 +114,116 @@ function rebuetext_settings_page()
                                         <div id="collapse<?php echo esc_attr($key); ?>" class="accordion-collapse collapse"
                                             aria-labelledby="heading<?php echo esc_attr($key); ?>"
                                             data-bs-parent="#templatesAccordion">
-                                            <div class="accordion-body">
-                                                <div class="mb-3">
-                                                    <label class="form-label"><?php esc_html_e('Customer SMS Template', 'rebuetext'); ?></label>
-                                                    <textarea class="form-control" rows="3" name="rebuetext_customer_templates[<?php echo esc_attr($key); ?>]"><?php echo isset($customer_templates[$key]) ? esc_textarea($customer_templates[$key]) : ''; ?></textarea>
+                                            <div class="accordion-body bg-white">
+
+                                                <div class="p-3 mb-3 border rounded">
+                                                    <h6 class="fw-bold text-primary mb-3">Customer Notification</h6>
+                                                    <div class="mb-3 pb-2 border-bottom">
+                                                        <label class="form-check form-check-inline">
+                                                            <input class="form-check-input channel-toggle" type="checkbox"
+                                                                name="rebuetext_channels[<?php echo esc_attr($key); ?>][customer][]" value="sms"
+                                                                data-target="sms-config-<?php echo esc_attr($key); ?>-customer"
+                                                                <?php echo in_array('sms', $channels[$key]['customer'] ?? ['sms']) ? 'checked' : ''; ?>>
+                                                            <?php esc_html_e('Send SMS', 'rebuetext'); ?>
+                                                        </label>
+                                                        <label class="form-check form-check-inline">
+                                                            <input class="form-check-input channel-toggle" type="checkbox"
+                                                                name="rebuetext_channels[<?php echo esc_attr($key); ?>][customer][]" value="whatsapp"
+                                                                data-target="wa-config-<?php echo esc_attr($key); ?>-customer"
+                                                                <?php echo in_array('whatsapp', $channels[$key]['customer'] ?? []) ? 'checked' : ''; ?>>
+                                                            <?php esc_html_e('Send WhatsApp', 'rebuetext'); ?>
+                                                        </label>
+                                                    </div>
+
+                                                    <div id="sms-config-<?php echo esc_attr($key); ?>-customer" class="mb-3 channel-config">
+                                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                                            <label class="form-label text-muted small fw-bold mb-0"><i class="dashicons dashicons-email-alt"></i> <?php esc_html_e('SMS Template', 'rebuetext'); ?></label>
+                                                            <div class="dropdown">
+                                                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                                    <span class="dashicons dashicons-tag" style="line-height: 1.5; font-size: 14px; width: 14px; height: 14px;"></span> Insert Tag
+                                                                </button>
+                                                                <ul class="dropdown-menu dropdown-menu-end shadow sms-tag-dropdown" style="max-height: 250px; overflow-y: auto;">
+                                                                </ul>
+                                                            </div>
+                                                        </div>
+                                                        <textarea class="form-control" rows="2" name="rebuetext_customer_templates[<?php echo esc_attr($key); ?>]"><?php echo isset($customer_templates[$key]) ? esc_textarea($customer_templates[$key]) : ''; ?></textarea>
+                                                    </div>
+
+                                                    <div id="wa-config-<?php echo esc_attr($key); ?>-customer" class="mb-3 channel-config p-3 bg-light rounded border">
+                                                        <label class="form-label text-success small fw-bold"><i class="dashicons dashicons-whatsapp"></i> <?php esc_html_e('WhatsApp Template', 'rebuetext'); ?></label>
+                                                        <?php
+                                                        $selected_wa_tpl = $wa_mappings[$key]['customer']['template'] ?? '';
+                                                        $saved_vars = wp_json_encode($wa_mappings[$key]['customer']['vars'] ?? []);
+                                                        ?>
+                                                        <select class="form-select wa-template-selector mb-3"
+                                                            name="rebuetext_wa_mappings[<?php echo esc_attr($key); ?>][customer][template]"
+                                                            data-container="wa-vars-<?php echo esc_attr($key); ?>-customer"
+                                                            data-saved-vars='<?php echo esc_attr($saved_vars); ?>'>
+                                                            <option value="">-- <?php esc_html_e('Select an Approved Template', 'rebuetext'); ?> --</option>
+                                                            <?php foreach ($wa_templates as $tpl): ?>
+                                                                <option value="<?php echo esc_attr($tpl['name'] . '|' . $tpl['language']); ?>" <?php selected($selected_wa_tpl, $tpl['name'] . '|' . $tpl['language']); ?>>
+                                                                    <?php echo esc_html($tpl['name'] . ' (' . $tpl['language'] . ')'); ?>
+                                                                </option>
+                                                            <?php endforeach; ?>
+                                                        </select>
+                                                        <div id="wa-vars-<?php echo esc_attr($key); ?>-customer" class="wa-vars-container row g-2"></div>
+                                                    </div>
                                                 </div>
-                                                <div class="mb-3">
-                                                    <label class="form-label"><?php esc_html_e('Admin SMS Template', 'rebuetext'); ?></label>
-                                                    <textarea class="form-control" rows="3"
-                                                        name="rebuetext_admin_templates[<?php echo esc_attr($key); ?>]"><?php echo isset($admin_templates[$key]) ? esc_textarea($admin_templates[$key]) : ''; ?></textarea>
+
+                                                <div class="p-3 border rounded bg-light">
+                                                    <h6 class="fw-bold text-dark mb-3">Admin Notification</h6>
+                                                    <div class="mb-3 pb-2 border-bottom">
+                                                        <label class="form-check form-check-inline">
+                                                            <input class="form-check-input channel-toggle" type="checkbox"
+                                                                name="rebuetext_channels[<?php echo esc_attr($key); ?>][admin][]" value="sms"
+                                                                data-target="sms-config-<?php echo esc_attr($key); ?>-admin"
+                                                                <?php echo in_array('sms', $channels[$key]['admin'] ?? ['sms']) ? 'checked' : ''; ?>>
+                                                            <?php esc_html_e('Send SMS', 'rebuetext'); ?>
+                                                        </label>
+                                                        <label class="form-check form-check-inline">
+                                                            <input class="form-check-input channel-toggle" type="checkbox"
+                                                                name="rebuetext_channels[<?php echo esc_attr($key); ?>][admin][]" value="whatsapp"
+                                                                data-target="wa-config-<?php echo esc_attr($key); ?>-admin"
+                                                                <?php echo in_array('whatsapp', $channels[$key]['admin'] ?? []) ? 'checked' : ''; ?>>
+                                                            <?php esc_html_e('Send WhatsApp', 'rebuetext'); ?>
+                                                        </label>
+                                                    </div>
+
+                                                    <div id="sms-config-<?php echo esc_attr($key); ?>-admin" class="mb-3 channel-config">
+                                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                                            <label class="form-label text-muted small fw-bold mb-0"><i class="dashicons dashicons-email-alt"></i> <?php esc_html_e('Admin SMS Template', 'rebuetext'); ?></label>
+                                                            <div class="dropdown">
+                                                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                                    <span class="dashicons dashicons-tag" style="line-height: 1.5; font-size: 14px; width: 14px; height: 14px;"></span> Insert Tag
+                                                                </button>
+                                                                <ul class="dropdown-menu dropdown-menu-end shadow sms-tag-dropdown" style="max-height: 250px; overflow-y: auto;">
+                                                                </ul>
+                                                            </div>
+                                                        </div>
+                                                        <textarea class="form-control" rows="2" name="rebuetext_admin_templates[<?php echo esc_attr($key); ?>]"><?php echo isset($admin_templates[$key]) ? esc_textarea($admin_templates[$key]) : ''; ?></textarea>
+                                                    </div>
+
+                                                    <div id="wa-config-<?php echo esc_attr($key); ?>-admin" class="mb-3 channel-config p-3 bg-white rounded border">
+                                                        <label class="form-label text-success small fw-bold"><i class="dashicons dashicons-whatsapp"></i> <?php esc_html_e('Admin WhatsApp Template', 'rebuetext'); ?></label>
+                                                        <?php
+                                                        $selected_wa_tpl_admin = $wa_mappings[$key]['admin']['template'] ?? '';
+                                                        $saved_vars_admin = wp_json_encode($wa_mappings[$key]['admin']['vars'] ?? []);
+                                                        ?>
+                                                        <select class="form-select wa-template-selector mb-3"
+                                                            name="rebuetext_wa_mappings[<?php echo esc_attr($key); ?>][admin][template]"
+                                                            data-container="wa-vars-<?php echo esc_attr($key); ?>-admin"
+                                                            data-saved-vars='<?php echo esc_attr($saved_vars_admin); ?>'>
+                                                            <option value="">-- <?php esc_html_e('Select an Approved Template', 'rebuetext'); ?> --</option>
+                                                            <?php foreach ($wa_templates as $tpl): ?>
+                                                                <option value="<?php echo esc_attr($tpl['name'] . '|' . $tpl['language']); ?>" <?php selected($selected_wa_tpl_admin, $tpl['name'] . '|' . $tpl['language']); ?>>
+                                                                    <?php echo esc_html($tpl['name'] . ' (' . $tpl['language'] . ')'); ?>
+                                                                </option>
+                                                            <?php endforeach; ?>
+                                                        </select>
+                                                        <div id="wa-vars-<?php echo esc_attr($key); ?>-admin" class="wa-vars-container row g-2"></div>
+                                                    </div>
                                                 </div>
+
                                             </div>
                                         </div>
                                     </div>
@@ -162,57 +244,136 @@ function rebuetext_settings_page()
 function rebuetext_cf7_sms_panel_callback($form)
 {
     $form_id = $form->id();
-    // Corrected option prefix
-    $data = get_option('rebuetext_cf7_sms_data_' . $form_id, [
-        'phone'          => '',
-        'message'        => '',
-        'visitorNumber'  => '',
-        'visitorMessage' => ''
-    ]);
-?>
-    <div id="cf7si-sms-sortables" class="meta-box-sortables ui-sortable">
-        <h4><?php esc_html_e("Admin SMS Notifications", "rebuetext"); ?></h4>
-        <fieldset>
-            <legend><?php esc_html_e("You can use these CF7 tags:", "rebuetext"); ?><br />
-                <?php $form->suggest_mail_tags(); ?>
-            </legend>
-            <table class="form-table">
-                <tr>
-                    <th><label><?php esc_html_e("To (admin phone):", "rebuetext"); ?></label></th>
-                    <td>
-                        <input type="text" name="wpcf7si-settings[phone]" class="wide" size="70" value="<?php echo esc_attr($data['phone']); ?>">
-                        <br /><small><?php esc_html_e("Use CF7 mail-tags like [your-phone] or raw numbers (comma-separated)", "rebuetext"); ?></small>
-                    </td>
-                </tr>
-                <tr>
-                    <th><label><?php esc_html_e("Message body:", "rebuetext"); ?></label></th>
-                    <td>
-                        <textarea name="wpcf7si-settings[message]" cols="100" rows="4" class="large-text code"><?php echo esc_textarea($data['message']); ?></textarea>
-                    </td>
-                </tr>
-            </table>
-        </fieldset>
 
-        <hr />
-        <h3><?php esc_html_e("Visitor SMS Notifications", "rebuetext"); ?></h3>
-        <fieldset>
-            <legend><?php esc_html_e("Use CF7 mail-tags like [your-phone] for visitor number", "rebuetext"); ?></legend>
-            <table class="form-table">
+    // Fetch saved data with our new WhatsApp/Channel fields included
+    $data = get_option('rebuetext_cf7_sms_data_' . $form_id, [
+        'phone'               => '',
+        'message'             => '',
+        'visitorNumber'       => '',
+        'visitorMessage'      => '',
+        'admin_channels'      => ['sms'],
+        'visitor_channels'    => ['sms'],
+        'wa_admin_template'   => '',
+        'wa_admin_vars'       => [],
+        'wa_visitor_template' => '',
+        'wa_visitor_vars'     => []
+    ]);
+
+    $wa_templates = function_exists('rebuetext_fetch_whatsapp_templates') ? rebuetext_fetch_whatsapp_templates() : [];
+?>
+    <div id="cf7si-sms-sortables" class="meta-box-sortables ui-sortable p-4">
+
+        <div class="notice notice-info mb-4">
+            <p><?php esc_html_e("You can use CF7 mail-tags like [your-name] or [your-phone] in any of the fields below.", "rebuetext"); ?></p>
+            <p><strong>Available tags:</strong> <?php $form->suggest_mail_tags(); ?></p>
+        </div>
+
+        <div class="p-3 mb-4 border rounded bg-light">
+            <h4 class="fw-bold text-dark mb-3"><?php esc_html_e("Admin Notifications", "rebuetext"); ?></h4>
+
+            <table class="form-table mb-3">
                 <tr>
-                    <th><label><?php esc_html_e("Visitor Mobile:", "rebuetext"); ?></label></th>
+                    <th><label class="fw-bold"><?php esc_html_e("To (Admin Phone):", "rebuetext"); ?></label></th>
                     <td>
-                        <input type="text" name="wpcf7si-settings[visitorNumber]" class="wide" size="70" value="<?php echo esc_attr($data['visitorNumber']); ?>">
-                        <br /><small><?php esc_html_e("Use CF7 tags or comma-separated values", "rebuetext"); ?></small>
-                    </td>
-                </tr>
-                <tr>
-                    <th><label><?php esc_html_e("Message body:", "rebuetext"); ?></label></th>
-                    <td>
-                        <textarea name="wpcf7si-settings[visitorMessage]" cols="100" rows="4" class="large-text code"><?php echo esc_textarea($data['visitorMessage']); ?></textarea>
+                        <input type="text" name="wpcf7si-settings[phone]" class="regular-text" value="<?php echo esc_attr($data['phone']); ?>">
+                        <p class="description"><?php esc_html_e("Use CF7 tags like [your-phone] or raw numbers.", "rebuetext"); ?></p>
                     </td>
                 </tr>
             </table>
-        </fieldset>
+
+            <div class="mb-3 pb-2 border-bottom">
+                <label class="form-check form-check-inline">
+                    <input class="form-check-input channel-toggle" type="checkbox" name="wpcf7si-settings[admin_channels][]" value="sms" data-target="cf7-sms-admin" <?php echo in_array('sms', $data['admin_channels']) ? 'checked' : ''; ?>>
+                    <?php esc_html_e('Send SMS', 'rebuetext'); ?>
+                </label>
+                <label class="form-check form-check-inline">
+                    <input class="form-check-input channel-toggle" type="checkbox" name="wpcf7si-settings[admin_channels][]" value="whatsapp" data-target="cf7-wa-admin" <?php echo in_array('whatsapp', $data['admin_channels']) ? 'checked' : ''; ?>>
+                    <?php esc_html_e('Send WhatsApp', 'rebuetext'); ?>
+                </label>
+            </div>
+
+            <div id="cf7-sms-admin" class="mb-3 channel-config">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <label class="form-label text-muted small fw-bold mb-0"><i class="dashicons dashicons-email-alt"></i> <?php esc_html_e('SMS Message Body:', "rebuetext"); ?></label>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Insert Tag">
+                            <span class="dashicons dashicons-tag" style="line-height: 1.5; font-size: 14px; width: 14px; height: 14px;"></span> Insert Tag
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow sms-tag-dropdown" style="max-height: 250px; overflow-y: auto;">
+                        </ul>
+                    </div>
+                </div>
+                <textarea name="wpcf7si-settings[message]" rows="4" class="form-control"><?php echo esc_textarea($data['message']); ?></textarea>
+            </div>
+
+            <div id="cf7-wa-admin" class="mb-3 channel-config p-3 bg-white rounded border">
+                <label class="form-label text-success small fw-bold"><i class="dashicons dashicons-whatsapp"></i> <?php esc_html_e('WhatsApp Template:', "rebuetext"); ?></label>
+                <?php $saved_vars_admin = wp_json_encode($data['wa_admin_vars']); ?>
+                <select class="form-select wa-template-selector mb-3" name="wpcf7si-settings[wa_admin_template]" data-container="cf7-wa-vars-admin" data-input-name="wpcf7si-settings[wa_admin_vars][]" data-saved-vars='<?php echo esc_attr($saved_vars_admin); ?>'>
+                    <option value="">-- <?php esc_html_e('Select an Approved Template', 'rebuetext'); ?> --</option>
+                    <?php foreach ($wa_templates as $tpl): ?>
+                        <option value="<?php echo esc_attr($tpl['name'] . '|' . $tpl['language']); ?>" <?php selected($data['wa_admin_template'], $tpl['name'] . '|' . $tpl['language']); ?>>
+                            <?php echo esc_html($tpl['name'] . ' (' . $tpl['language'] . ')'); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <div id="cf7-wa-vars-admin" class="wa-vars-container row g-2"></div>
+            </div>
+        </div>
+
+        <div class="p-3 border rounded bg-light">
+            <h4 class="fw-bold text-dark mb-3"><?php esc_html_e("Visitor Notifications", "rebuetext"); ?></h4>
+
+            <table class="form-table mb-3">
+                <tr>
+                    <th><label class="fw-bold"><?php esc_html_e("To (Visitor Phone Field):", "rebuetext"); ?></label></th>
+                    <td>
+                        <input type="text" name="wpcf7si-settings[visitorNumber]" class="regular-text" value="<?php echo esc_attr($data['visitorNumber']); ?>">
+                        <p class="description"><?php esc_html_e("Must be a CF7 tag like [your-phone].", "rebuetext"); ?></p>
+                    </td>
+                </tr>
+            </table>
+
+            <div class="mb-3 pb-2 border-bottom">
+                <label class="form-check form-check-inline">
+                    <input class="form-check-input channel-toggle" type="checkbox" name="wpcf7si-settings[visitor_channels][]" value="sms" data-target="cf7-sms-visitor" <?php echo in_array('sms', $data['visitor_channels']) ? 'checked' : ''; ?>>
+                    <?php esc_html_e('Send SMS', 'rebuetext'); ?>
+                </label>
+                <label class="form-check form-check-inline">
+                    <input class="form-check-input channel-toggle" type="checkbox" name="wpcf7si-settings[visitor_channels][]" value="whatsapp" data-target="cf7-wa-visitor" <?php echo in_array('whatsapp', $data['visitor_channels']) ? 'checked' : ''; ?>>
+                    <?php esc_html_e('Send WhatsApp', 'rebuetext'); ?>
+                </label>
+            </div>
+
+            <div id="cf7-sms-visitor" class="mb-3 channel-config">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <label class="form-label text-muted small fw-bold mb-0"><i class="dashicons dashicons-email-alt"></i> <?php esc_html_e('Visitor SMS Message Body:', "rebuetext"); ?></label>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Insert Tag">
+                            <span class="dashicons dashicons-tag" style="line-height: 1.5; font-size: 14px; width: 14px; height: 14px;"></span> Insert Tag
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow sms-tag-dropdown" style="max-height: 250px; overflow-y: auto;">
+                        </ul>
+                    </div>
+                </div>
+                <textarea name="wpcf7si-settings[visitorMessage]" rows="4" class="form-control"><?php echo esc_textarea($data['visitorMessage']); ?></textarea>
+            </div>
+
+            <div id="cf7-wa-visitor" class="mb-3 channel-config p-3 bg-white rounded border">
+                <label class="form-label text-success small fw-bold"><i class="dashicons dashicons-whatsapp"></i> <?php esc_html_e('Visitor WhatsApp Template:', "rebuetext"); ?></label>
+                <?php $saved_vars_visitor = wp_json_encode($data['wa_visitor_vars']); ?>
+                <select class="form-select wa-template-selector mb-3" name="wpcf7si-settings[wa_visitor_template]" data-container="cf7-wa-vars-visitor" data-input-name="wpcf7si-settings[wa_visitor_vars][]" data-saved-vars='<?php echo esc_attr($saved_vars_visitor); ?>'>
+                    <option value="">-- <?php esc_html_e('Select an Approved Template', 'rebuetext'); ?> --</option>
+                    <?php foreach ($wa_templates as $tpl): ?>
+                        <option value="<?php echo esc_attr($tpl['name'] . '|' . $tpl['language']); ?>" <?php selected($data['wa_visitor_template'], $tpl['name'] . '|' . $tpl['language']); ?>>
+                            <?php echo esc_html($tpl['name'] . ' (' . $tpl['language'] . ')'); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <div id="cf7-wa-vars-visitor" class="wa-vars-container row g-2"></div>
+            </div>
+        </div>
+
     </div>
 <?php
 }
@@ -279,7 +440,8 @@ function rebuetext_sms_balance_page()
         return;
     }
 
-    $response = wp_remote_get('https://rebuetext.com/api/v1/account/balance', [
+    $endpoint = rebuetext_get_api_base_url() . '/account/balance';
+    $response = wp_remote_get($endpoint, [
         'headers' => [
             'Authorization' => 'Bearer ' . $api_token,
             'Accept' => 'application/json',

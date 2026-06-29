@@ -6,6 +6,23 @@ if (is_admin()) {
     // Corrected action prefix
     add_action('wp_ajax_rebuetext_save_settings', 'rebuetext_save_settings');
     add_action('admin_init', 'rebuetext_register_form_sms_settings');
+    add_action('wp_ajax_rebuetext_refresh_templates', 'rebuetext_refresh_templates_callback');
+
+    /**
+     * Recursively sanitize multi-dimensional arrays
+     */
+    function rebuetext_sanitize_array($array)
+    {
+        $sanitized = [];
+        foreach ($array as $key => $value) {
+            if (is_array($value)) {
+                $sanitized[sanitize_text_field($key)] = rebuetext_sanitize_array($value);
+            } else {
+                $sanitized[sanitize_text_field($key)] = sanitize_text_field($value);
+            }
+        }
+        return $sanitized;
+    }
 
     function rebuetext_save_settings()
     {
@@ -20,14 +37,16 @@ if (is_admin()) {
             wp_send_json_error('Invalid security token', 403);
         }
 
-        // FIX: Do NOT sanitize the raw serialized string here, as it destroys URL-encoded arrays and textareas.
+        // Do NOT sanitize the raw serialized string here, as it destroys URL-encoded arrays and textareas.
         // Unslash it, parse it, and then sanitize the individual elements below.
         $raw_data = isset($_POST['data']) ? wp_unslash($_POST['data']) : '';
         parse_str($raw_data, $settings_data);
 
         // Sanitize and update individual elements safely
+        update_option('rebuetext_api_env', isset($settings_data['rebuetext_api_env']) ? sanitize_text_field($settings_data['rebuetext_api_env']) : 'production');
         update_option('rebuetext_api_token', isset($settings_data['rebuetext_api_token']) ? sanitize_text_field($settings_data['rebuetext_api_token']) : '');
         update_option('rebuetext_sender_id', isset($settings_data['rebuetext_sender_id']) ? sanitize_text_field($settings_data['rebuetext_sender_id']) : '');
+        update_option('rebuetext_wa_phone', isset($settings_data['rebuetext_wa_phone']) ? sanitize_text_field($settings_data['rebuetext_wa_phone']) : '');
         update_option('rebuetext_admin_phone', isset($settings_data['rebuetext_admin_phone']) ? sanitize_text_field($settings_data['rebuetext_admin_phone']) : '');
 
         $statuses = isset($settings_data['rebuetext_enabled_statuses']) && is_array($settings_data['rebuetext_enabled_statuses']) ? array_map('sanitize_text_field', $settings_data['rebuetext_enabled_statuses']) : [];
@@ -35,6 +54,12 @@ if (is_admin()) {
 
         $customer_templates = isset($settings_data['rebuetext_customer_templates']) && is_array($settings_data['rebuetext_customer_templates']) ? array_map('sanitize_textarea_field', $settings_data['rebuetext_customer_templates']) : [];
         update_option('rebuetext_customer_templates', $customer_templates);
+
+        $channels = isset($settings_data['rebuetext_channels']) && is_array($settings_data['rebuetext_channels']) ? rebuetext_sanitize_array($settings_data['rebuetext_channels']) : [];
+        update_option('rebuetext_channels', $channels);
+
+        $wa_mappings = isset($settings_data['rebuetext_wa_mappings']) && is_array($settings_data['rebuetext_wa_mappings']) ? rebuetext_sanitize_array($settings_data['rebuetext_wa_mappings']) : [];
+        update_option('rebuetext_wa_mappings', $wa_mappings);
 
         $admin_templates = isset($settings_data['rebuetext_admin_templates']) && is_array($settings_data['rebuetext_admin_templates']) ? array_map('sanitize_textarea_field', $settings_data['rebuetext_admin_templates']) : [];
         update_option('rebuetext_admin_templates', $admin_templates);
@@ -82,6 +107,37 @@ if (is_admin()) {
             echo '<textarea name="rebuetext_gf_sms_template" rows="4" style="width:100%;">' . esc_textarea(get_option('rebuetext_gf_sms_template')) . '</textarea>';
         }, 'rebuetext-form-integrations', 'gf_sms');
     }
+
+    function rebuetext_refresh_templates_callback()
+    {
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Unauthorized', 403);
+        }
+
+        // Delete transient to force full external lookup
+        delete_transient('rebuetext_wa_templates_cache');
+
+        $templates = rebuetext_fetch_whatsapp_templates();
+
+        wp_send_json_success([
+            'message'   => 'Templates synced successfully!',
+            'templates' => $templates
+        ]);
+    }
+}
+
+/**
+ * Get the correct API base URL depending on the selected environment.
+ */
+function rebuetext_get_api_base_url()
+{
+    $env = get_option('rebuetext_api_env', 'production');
+
+    if ($env === 'local') {
+        return 'http://127.0.0.1:8000/api/v1'; // Local Laravel environment
+    }
+
+    return 'https://rebuetext.com/api/v1'; // Production environment
 }
 
 // SMS function
@@ -89,6 +145,7 @@ function rebuetext_send_sms($phone, $message, $correlator = 'custom')
 {
     $api_token = sanitize_text_field(get_option('rebuetext_api_token'));
     $sender_id = sanitize_text_field(get_option('rebuetext_sender_id'));
+    $endpoint = rebuetext_get_api_base_url() . '/send-sms';
 
     if (empty($phone) || empty($message)) return;
 
@@ -105,7 +162,7 @@ function rebuetext_send_sms($phone, $message, $correlator = 'custom')
         'correlator' => sanitize_key($correlator)
     ];
 
-    $response = wp_remote_post('https://rebuetext.com/api/v1/send-sms', [
+    $response = wp_remote_post($endpoint, [
         'method'    => 'POST',
         'body'      => wp_json_encode($sms_data),
         'headers'   => $headers,
@@ -130,13 +187,15 @@ function rebuetext_cf7_sms_save_settings($cf7)
     if (!isset($_POST['wpcf7si-settings']) || !is_array($_POST['wpcf7si-settings'])) return;
 
     $form_id = $cf7->id();
-    $settings = array_map('sanitize_text_field', $_POST['wpcf7si-settings']);
+
+    // Use our recursive sanitizer so arrays (like checkboxes and WA vars) are saved properly!
+    $settings = rebuetext_sanitize_array($_POST['wpcf7si-settings']);
 
     // Prefixed option name correctly
     update_option('rebuetext_cf7_sms_data_' . $form_id, $settings);
 }
 
-// Send SMS After for CF7 Form Submission
+// Send Omnichannel Notifications After for CF7 Form Submission
 add_action('wpcf7_mail_sent', 'rebuetext_cf7_send_sms_after_submission');
 function rebuetext_cf7_send_sms_after_submission($form)
 {
@@ -147,31 +206,102 @@ function rebuetext_cf7_send_sms_after_submission($form)
 
     $posted_data = $submission->get_posted_data();
 
-    // Retrieve per-form settings using the updated prefix
+    // Retrieve per-form settings
     $options = get_option('rebuetext_cf7_sms_data_' . $form_id, []);
     $default_options = [
-        'phone' => sanitize_text_field(get_option('rebuetext_admin_phone', '')),
-        'message' => 'New form submitted: [your-name] - [your-message]',
-        'visitorNumber' => '[your-phone]',
-        'visitorMessage' => 'Thank you [your-name], we received your message.'
+        'phone'               => get_option('rebuetext_admin_phone', ''),
+        'message'             => '',
+        'visitorNumber'       => '',
+        'visitorMessage'      => '',
+        'admin_channels'      => [], // e.g. ['sms', 'whatsapp']
+        'visitor_channels'    => [],
+        'wa_admin_template'   => '',
+        'wa_admin_vars'       => [],
+        'wa_visitor_template' => '',
+        'wa_visitor_vars'     => []
     ];
 
     $config = wp_parse_args($options, $default_options);
+    $wa_sender = get_option('rebuetext_wa_phone'); // Configured in general settings
 
-    // Parse message fields
-    $admin_number     = rebuetext_cf7_parse_tags($config['phone'], $form, $posted_data);
-    $admin_message    = rebuetext_cf7_parse_tags($config['message'], $form, $posted_data);
-    $visitor_number   = rebuetext_cf7_parse_tags($config['visitorNumber'], $form, $posted_data);
-    $visitor_message  = rebuetext_cf7_parse_tags($config['visitorMessage'], $form, $posted_data);
 
-    // Send to admin
-    if (!empty($admin_number) && !empty($admin_message)) {
-        rebuetext_send_sms($admin_number, $admin_message, 'cf7_admin_' . $form_id);
+    /* =========================================================
+     * 1. ADMIN NOTIFICATIONS
+     * ========================================================= */
+    $admin_number = rebuetext_cf7_parse_tags($config['phone'], $form, $posted_data);
+
+    if (!empty($admin_number)) {
+
+        // A. Send Admin SMS
+        if (in_array('sms', $config['admin_channels']) && !empty($config['message'])) {
+            $admin_message = rebuetext_cf7_parse_tags($config['message'], $form, $posted_data);
+            rebuetext_send_sms($admin_number, $admin_message, 'cf7_admin_' . $form_id);
+        }
+
+        // B. Send Admin WhatsApp
+        if (in_array('whatsapp', $config['admin_channels']) && !empty($wa_sender) && !empty($config['wa_admin_template'])) {
+            $parts = explode('|', $config['wa_admin_template']);
+            $tpl_name = $parts[0];
+            $tpl_lang = $parts[1] ?? 'en_US';
+
+            // Parse CF7 tags inside the WhatsApp array variables
+            $parsed_vars = [];
+            if (!empty($config['wa_admin_vars'])) {
+                foreach ($config['wa_admin_vars'] as $raw_var) {
+                    $parsed_vars[] = rebuetext_cf7_parse_tags($raw_var, $form, $posted_data);
+                }
+            }
+
+            rebuetext_send_whatsapp_template(
+                $wa_sender,
+                $admin_number,
+                $tpl_name,
+                $tpl_lang,
+                $parsed_vars,
+                null,
+                'cf7_wa_admin_' . $form_id
+            );
+        }
     }
 
-    // Send to visitor
-    if (!empty($visitor_number) && !empty($visitor_message)) {
-        rebuetext_send_sms($visitor_number, $visitor_message, 'cf7_visitor_' . $form_id);
+
+    /* =========================================================
+     * 2. VISITOR NOTIFICATIONS
+     * ========================================================= */
+    $visitor_number = rebuetext_cf7_parse_tags($config['visitorNumber'], $form, $posted_data);
+
+    if (!empty($visitor_number)) {
+
+        // A. Send Visitor SMS
+        if (in_array('sms', $config['visitor_channels']) && !empty($config['visitorMessage'])) {
+            $visitor_message = rebuetext_cf7_parse_tags($config['visitorMessage'], $form, $posted_data);
+            rebuetext_send_sms($visitor_number, $visitor_message, 'cf7_visitor_' . $form_id);
+        }
+
+        // B. Send Visitor WhatsApp
+        if (in_array('whatsapp', $config['visitor_channels']) && !empty($wa_sender) && !empty($config['wa_visitor_template'])) {
+            $parts = explode('|', $config['wa_visitor_template']);
+            $tpl_name = $parts[0];
+            $tpl_lang = $parts[1] ?? 'en_US';
+
+            // Parse CF7 tags inside the WhatsApp array variables
+            $parsed_vars = [];
+            if (!empty($config['wa_visitor_vars'])) {
+                foreach ($config['wa_visitor_vars'] as $raw_var) {
+                    $parsed_vars[] = rebuetext_cf7_parse_tags($raw_var, $form, $posted_data);
+                }
+            }
+
+            rebuetext_send_whatsapp_template(
+                $wa_sender,
+                $visitor_number,
+                $tpl_name,
+                $tpl_lang,
+                $parsed_vars,
+                null,
+                'cf7_wa_visitor_' . $form_id
+            );
+        }
     }
 }
 

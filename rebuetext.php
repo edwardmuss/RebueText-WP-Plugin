@@ -21,6 +21,7 @@ require_once(REBUETEXT_PLUGIN_DIR . 'admin/settings-page.php');
 require_once(REBUETEXT_PLUGIN_DIR . 'admin/admin-menu.php');
 require_once(REBUETEXT_PLUGIN_DIR . 'admin/sms-logs.php');
 require_once(REBUETEXT_PLUGIN_DIR . 'includes/woo-sms-api.php');
+require_once(REBUETEXT_PLUGIN_DIR . 'includes/whatsapp-api.php');
 require_once(REBUETEXT_PLUGIN_DIR . 'includes/installer.php');
 require_once(REBUETEXT_PLUGIN_DIR . 'includes/functions.php');
 
@@ -58,7 +59,7 @@ function rebuetext_enqueue_admin_styles($hook)
     if (
         $hook === 'toplevel_page_rebuetext-settings' || // your main settings page
         $hook === 'contact_page_rebuetext-form-integrations' || // your CF7 submenu
-        (isset($_GET['page']) && $_GET['page'] === 'rebuetext-settings')
+        (isset($_GET['page']) && ($_GET['page'] === 'rebuetext-settings' || $_GET['page'] === 'wpcf7'))
     ) {
         wp_enqueue_style('rebuetext-bootstrap', REBUETEXT_PLUGIN_URL . 'assets/css/bootstrap.min.css');
         wp_enqueue_style('rebuetext-admin-style', REBUETEXT_PLUGIN_URL . 'assets/css/admin-style.css', array(), filemtime(REBUETEXT_PLUGIN_DIR . 'assets/css/admin-style.css'));
@@ -81,8 +82,41 @@ function rebuetext_enqueue_admin_scripts($hook)
         wp_enqueue_script('rebuetext-admin-js', REBUETEXT_PLUGIN_URL . 'assets/js/admin-script.js', array('jquery'), null, true);
 
         // Explicitly localize the AJAX URL to prevent 400 Bad Request errors
+        // Fetch templates safely to pass to JS
+        $wa_templates = [];
+        if (function_exists('rebuetext_fetch_whatsapp_templates')) {
+            $wa_templates = rebuetext_fetch_whatsapp_templates();
+        }
+
+        // Available Woo Merge Tags
+        $merge_tags = [
+            'billing_first_name',
+            'billing_last_name',
+            'billing_company',
+            'billing_address',
+            'billing_country',
+            'billing_city',
+            'billing_state',
+            'billing_email',
+            'billing_phone',
+            'payment_method',
+            'payment_method_title',
+            'date_created',
+            'date_modified',
+            'date_completed',
+            'date_paid',
+            'order_id',
+            'order_number',
+            'order_total',
+            'order_discount',
+            'order_currency',
+            'status'
+        ];
+
         wp_localize_script('rebuetext-admin-js', 'rebuetext_globals', array(
-            'ajaxurl' => admin_url('admin-ajax.php')
+            'ajaxurl'     => admin_url('admin-ajax.php'),
+            'waTemplates' => $wa_templates,
+            'mergeTags'   => $merge_tags
         ));
     }
 }

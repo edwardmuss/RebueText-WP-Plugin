@@ -4,14 +4,16 @@ if (!defined('ABSPATH')) exit;
 
 function rebuetext_send_order_sms($order_id, $old_status, $new_status)
 {
+    $status_key = 'wc-' . $new_status;
     $enabled_statuses = get_option('rebuetext_enabled_statuses', []);
-    if (!in_array('wc-' . $new_status, $enabled_statuses)) {
+
+    // Check if this status is enabled at all
+    if (!in_array($status_key, $enabled_statuses)) {
         return;
     }
 
     $order = wc_get_order($order_id);
-    $api_token = get_option('rebuetext_api_token');
-    $sender_id = get_option('rebuetext_sender_id');
+
     $admin_phone = get_option('rebuetext_admin_phone', '');
     $billing_phone = $order->get_billing_phone();
 
@@ -28,10 +30,10 @@ function rebuetext_send_order_sms($order_id, $old_status, $new_status)
         'billing_phone'         => $order->get_billing_phone(),
         'payment_method'        => $order->get_payment_method(),
         'payment_method_title'  => $order->get_payment_method_title(),
-        'date_created'          => $order->get_date_created(),
-        'date_modified'         => $order->get_date_modified(),
-        'date_completed'        => $order->get_date_completed(),
-        'date_paid'             => $order->get_date_paid(),
+        'date_created'          => $order->get_date_created() ? $order->get_date_created()->date('Y-m-d H:i:s') : '',
+        'date_modified'         => $order->get_date_modified() ? $order->get_date_modified()->date('Y-m-d H:i:s') : '',
+        'date_completed'        => $order->get_date_completed() ? $order->get_date_completed()->date('Y-m-d H:i:s') : '',
+        'date_paid'             => $order->get_date_paid() ? $order->get_date_paid()->date('Y-m-d H:i:s') : '',
         'order_id'              => $order->get_id(),
         'order_number'          => $order->get_order_number(),
         'order_total'           => $order->get_total(),
@@ -40,56 +42,121 @@ function rebuetext_send_order_sms($order_id, $old_status, $new_status)
         'status'                => $order->get_status()
     ];
 
-    $customer_templates = get_option('rebuetext_customer_templates', []);
-    $admin_templates = get_option('rebuetext_admin_templates', []);
+    // Fetch routing settings
+    $channels    = get_option('rebuetext_channels', []);
+    $wa_mappings = get_option('rebuetext_wa_mappings', []);
+    $wa_sender   = get_option('rebuetext_wa_phone'); // New WA Phone Number
 
-    $customer_message = isset($customer_templates['wc-' . $new_status]) ? $customer_templates['wc-' . $new_status] : '';
-    $admin_message = isset($admin_templates['wc-' . $new_status]) ? $admin_templates['wc-' . $new_status] : '';
+    // Fallback to SMS if channels array is empty (for backward compatibility with old settings)
+    $customer_channels = $channels[$status_key]['customer'] ?? ['sms'];
+    $admin_channels    = $channels[$status_key]['admin'] ?? ['sms'];
 
-    foreach ($values as $key => $value) {
-        $customer_message = str_replace("{{$key}}", $value, $customer_message);
-        $admin_message = str_replace("{{$key}}", $value, $admin_message);
+
+    /* =========================================================
+     * 1. CUSTOMER NOTIFICATIONS
+     * ========================================================= */
+    if ($billing_phone) {
+
+        // A. Send Customer SMS
+        if (in_array('sms', $customer_channels)) {
+            $customer_templates = get_option('rebuetext_customer_templates', []);
+            $customer_message   = $customer_templates[$status_key] ?? '';
+
+            if (!empty($customer_message)) {
+                foreach ($values as $key => $value) {
+                    $customer_message = str_replace("{{$key}}", $value, $customer_message);
+                }
+                rebuetext_send_sms($billing_phone, $customer_message, 'order_' . $order_id);
+            }
+        }
+
+        // B. Send Customer WhatsApp
+        if (in_array('whatsapp', $customer_channels) && !empty($wa_sender)) {
+            $wa_config = $wa_mappings[$status_key]['customer'] ?? null;
+
+            if ($wa_config && !empty($wa_config['template'])) {
+                $parts = explode('|', $wa_config['template']);
+                $tpl_name = $parts[0];
+                $tpl_lang = $parts[1] ?? 'en_US';
+
+                // Parse the dynamic variables
+                $parsed_vars = [];
+                if (!empty($wa_config['vars'])) {
+                    foreach ($wa_config['vars'] as $raw_var) {
+                        $parsed_var = $raw_var;
+                        foreach ($values as $key => $value) {
+                            $parsed_var = str_replace("{{$key}}", $value, $parsed_var);
+                        }
+                        $parsed_vars[] = $parsed_var;
+                    }
+                }
+
+                // Dispatch to WA API
+                rebuetext_send_whatsapp_template(
+                    $wa_sender,
+                    $billing_phone,
+                    $tpl_name,
+                    $tpl_lang,
+                    $parsed_vars,
+                    null, // header (can be added later if needed)
+                    'wa_order_' . $order_id
+                );
+            }
+        }
     }
 
-    $headers = [
-        'Content-Type'  => 'application/json',
-        'Accept'        => 'application/json',
-        'Authorization' => 'Bearer ' . $api_token,
-    ];
 
-    $customer_sms_data = [
-        'sender'     => $sender_id,
-        'message'    => $customer_message,
-        'phone'      => $billing_phone,
-        'correlator' => 'order_' . $order_id
-    ];
+    /* =========================================================
+     * 2. ADMIN NOTIFICATIONS
+     * ========================================================= */
+    if ($admin_phone) {
 
-    $response = wp_remote_post('https://rebuetext.com/api/v1/send-sms', [
-        'method'    => 'POST',
-        'body'      => json_encode($customer_sms_data),
-        'headers'   => $headers,
-        'timeout'   => 30,
-    ]);
+        // A. Send Admin SMS
+        if (in_array('sms', $admin_channels)) {
+            $admin_templates = get_option('rebuetext_admin_templates', []);
+            $admin_message   = $admin_templates[$status_key] ?? '';
 
-    // Log SMS Response
-    rebuetext_log_sms($sender_id, $billing_phone, $customer_message, $response);
+            if (!empty($admin_message)) {
+                foreach ($values as $key => $value) {
+                    $admin_message = str_replace("{{$key}}", $value, $admin_message);
+                }
+                rebuetext_send_sms($admin_phone, $admin_message, 'order_admin_' . $order_id);
+            }
+        }
 
-    if (!empty($admin_phone) && $admin_message) {
-        $admin_sms_data = [
-            'sender'     => $sender_id,
-            'message'    => $admin_message,
-            'phone'      => $admin_phone,
-            'correlator' => 'order_admin_' . $order_id
-        ];
+        // B. Send Admin WhatsApp
+        if (in_array('whatsapp', $admin_channels) && !empty($wa_sender)) {
+            $wa_config = $wa_mappings[$status_key]['admin'] ?? null;
 
-        $response = wp_remote_post('https://rebuetext.com/api/v1/send-sms', [
-            'method'    => 'POST',
-            'body'      => json_encode($admin_sms_data),
-            'headers'   => $headers,
-            'timeout'   => 30,
-        ]);
+            if ($wa_config && !empty($wa_config['template'])) {
+                $parts = explode('|', $wa_config['template']);
+                $tpl_name = $parts[0];
+                $tpl_lang = $parts[1] ?? 'en_US';
 
-        rebuetext_log_sms($sender_id, $admin_phone, $admin_message, $response);
+                // Parse the dynamic variables
+                $parsed_vars = [];
+                if (!empty($wa_config['vars'])) {
+                    foreach ($wa_config['vars'] as $raw_var) {
+                        $parsed_var = $raw_var;
+                        foreach ($values as $key => $value) {
+                            $parsed_var = str_replace("{{$key}}", $value, $parsed_var);
+                        }
+                        $parsed_vars[] = $parsed_var;
+                    }
+                }
+
+                // Dispatch to WA API
+                rebuetext_send_whatsapp_template(
+                    $wa_sender,
+                    $admin_phone,
+                    $tpl_name,
+                    $tpl_lang,
+                    $parsed_vars,
+                    null,
+                    'wa_order_admin_' . $order_id
+                );
+            }
+        }
     }
 }
 

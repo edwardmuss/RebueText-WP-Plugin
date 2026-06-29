@@ -4,7 +4,7 @@
  * Plugin Name: RebueText
  * Plugin URI: https://rebuetext.com/plugins
  * Description: Sends SMS notifications for WooCommerce order status changes. Receive messages from Contact Forms 7, Gravity Forms and Wp Forms
- * Version: 1.0
+ * Version: 1.1
  * Author: RebueText
  * Author URI: https://rebuetext.com
  * License: GPL2
